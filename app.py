@@ -443,6 +443,65 @@ def calculate_low_side_height(
             + pipe_radius
         )
     
+
+def judge_chain_length(
+    use_dimension_a,
+    mount_height,
+    product_height,
+    dimension_a,
+    standard_chain_length,
+    high_side_height,
+    low_side_height,
+):
+    """
+    コード長さ判定
+
+    Returns
+    -------
+    (bool, str)
+        True  : 製作可能
+        False : 製作不可
+        str   : 判定メッセージ
+    """
+
+    # -----------------------------
+    # 希望チェーン長さ未指定
+    # -----------------------------
+    if not use_dimension_a:
+        return True, "製作可能"
+
+    # -----------------------------
+    # 1700判定に使用する高さを決定
+    # -----------------------------
+    if mount_height is None:
+        compare_height = product_height
+    else:
+        compare_height = mount_height
+
+    # -----------------------------
+    # 高さ1700以下
+    # -----------------------------
+    if compare_height <= 1700:
+
+        if dimension_a < standard_chain_length:
+            return False, "希望チェーン長さ(A)が短すぎます"
+
+    # -----------------------------
+    # 高さ1700超
+    # -----------------------------
+    else:
+
+        if high_side_height > 1500:
+            return False, "希望チェーン長さ(A)が短すぎます"
+
+    # -----------------------------
+    # 共通判定
+    # -----------------------------
+    if low_side_height < 10:
+        return False, "希望チェーン長さ(A)が長すぎます"
+
+    return True, "製作可能"
+
 def draw_svg():
 
     svg = """
@@ -844,6 +903,18 @@ with left_col:
             ball_chain_lead_count,
         )
             
+            # 標準チェーン長さ用ボールチェーン全長
+            standard_ball_chain_total_length = calculate_ball_chain_total_length(
+            False,
+            None,
+            pipe_radius,
+            one_stroke_distance,
+            pipe_center_height,
+            basic_values["操作起点最大高さ Amax"],
+            base_distance_difference,
+            basic_values["基準距離 K"],
+        )
+
             #ボールチェーン全長
             ball_chain_total_length = calculate_ball_chain_total_length(
             use_dimension_a,
@@ -856,15 +927,18 @@ with left_col:
             basic_values["基準距離 K"],
         )
             
-            #A寸法
+            # 標準チェーン長さ(A寸法)
+            standard_chain_length = calculate_dimension_a(
+            standard_ball_chain_total_length,
+            one_stroke_distance,
+            pipe_radius,
+            )
+
+            # 実際に使用するA寸法
+            dimension_a = standard_chain_length
+
             if use_dimension_a:
                 dimension_a = dimension_a_input
-            else:
-                dimension_a = calculate_dimension_a(
-                ball_chain_total_length,
-                one_stroke_distance,
-                pipe_radius,
-            )
 
             # B寸法
             dimension_b = calculate_dimension_b(
@@ -895,14 +969,27 @@ with left_col:
             dimension_b,
             pipe_radius,
         )
+            
+
+
+            judge_ok, judge_message = judge_chain_length(
+            use_dimension_a=use_dimension_a,
+            mount_height=mount_height,
+            product_height=product_height,
+            dimension_a=dimension_a,
+            standard_chain_length=standard_chain_length,
+            high_side_height=high_side_height,
+            low_side_height=low_side_height,
+        )
+
             st.session_state.result = {
-                "judge": "対応可能",
-                "a": f"{dimension_a:.0f}",
-                "b": f"{dimension_b:.0f}",
-                "c": f"{dimension_c:.0f}",
-                "high": f"{high_side_height:.0f}",
-                "low": f"{low_side_height:.0f}",
-            }
+            "judge": judge_message,
+            "a": f"{dimension_a:.0f}",
+            "b": f"{dimension_b:.0f}",
+            "c": f"{dimension_c:.0f}",
+            "high": f"{high_side_height:.0f}",
+            "low": f"{low_side_height:.0f}",
+        }
 
             st.success("入力チェックOKです。")
 
