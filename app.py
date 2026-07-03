@@ -7,20 +7,65 @@ st.set_page_config(
     layout="wide",
 )
 
+st.markdown("""
+<style>
+
+/* 上のヘッダーを消す */
+header{
+    visibility:hidden;
+}
+
+/* ハンバーガーメニューを消す */
+#MainMenu{
+    visibility:hidden;
+}
+
+/* フッターを消す */
+footer{
+    visibility:hidden;
+}
+
+/* ページ余白 */
+.block-container{
+    padding-top:0.5rem;
+    padding-bottom:0.5rem;
+}
+
+/* 判定ボタンを少し上に移動 */
+div[data-testid="stButton"]{
+    margin-top:-8px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+.block-container{
+    padding-top:0rem;
+    padding-bottom:0.5rem;
+}
+
+.app-title{
+    text-align:center;
+    font-size:2.2rem;
+    font-weight:700;
+    margin-top:20px;
+    margin-bottom:10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown(
-    """
-    <h1 style="text-align:center;">
-    マイテックスイット 操作チェーン長さ判定
-    </h1>
-    """,
+    '<div class="app-title">マイテックスイット 操作チェーン長さ判定</div>',
     unsafe_allow_html=True,
 )
 
 st.divider()
 
-# 左右レイアウト
-left_margin, left_col, space_col, right_col, right_margin = st.columns(
-    [0.5, 4, 1, 4, 0.5]
+# 画面レイアウト
+left_margin, input_col, space1, result_col, space2, image_col, right_margin = st.columns(
+    [0.4, 3, 0.4, 3, 0.4, 4, 0.4]
 )
 
 
@@ -393,7 +438,8 @@ def calculate_dimension_c(
 
 def calculate_high_side_height(
     mount_type,
-    pipe_center_height,
+    product_height,
+    mount_height,
     side_holder_center_distance,
     dimension_a,
     pipe_radius,
@@ -402,20 +448,26 @@ def calculate_high_side_height(
     床から高い側の高さを計算する
     """
 
+    # 取付高さを使用する値
+    if mount_height is None:
+        height = product_height
+    else:
+        height = mount_height
+
+    # 天井付け
     if mount_type == "天井付け":
         return (
-            pipe_center_height
-            + side_holder_center_distance
-            - (side_holder_center_distance - pipe_radius)
+            height
+            - side_holder_center_distance
+            + pipe_radius
             - dimension_a
         )
 
-    else:
-        return (
-            pipe_center_height
-            - dimension_a
-            + pipe_radius
-        )
+    # 正面付け
+    return (
+        height
+        - dimension_a
+    )
     
 def calculate_low_side_height(
     mount_type,
@@ -443,60 +495,53 @@ def calculate_low_side_height(
             + pipe_radius
         )
     
+def reset_result():
+    st.session_state.result = {
+        "judge": "****",
+        "a": "****",
+        "b": "****",
+        "c": "****",
+        "high": "****",
+        "low": "****",
+        "minimum_dimension_a": None,
+        "maximum_dimension_a": None,
+    }
+
+def reset_inputs():
+
+    for key in [
+        "screen_name",
+        "mount_type",
+        "product_width",
+        "product_height",
+        "use_mount_height",
+        "mount_height",
+        "use_dimension_a",
+        "dimension_a_input",
+    ]:
+        if key in st.session_state:
+            del st.session_state[key]
+
+    reset_result()
+
+    st.rerun()
 
 def judge_chain_length(
     use_dimension_a,
-    mount_height,
-    product_height,
     dimension_a,
     standard_chain_length,
-    high_side_height,
     low_side_height,
 ):
     """
     コード長さ判定
-
-    Returns
-    -------
-    (bool, str)
-        True  : 製作可能
-        False : 製作不可
-        str   : 判定メッセージ
     """
 
-    # -----------------------------
-    # 希望チェーン長さ未指定
-    # -----------------------------
     if not use_dimension_a:
         return True, "製作可能"
 
-    # -----------------------------
-    # 1700判定に使用する高さを決定
-    # -----------------------------
-    if mount_height is None:
-        compare_height = product_height
-    else:
-        compare_height = mount_height
+    if dimension_a < standard_chain_length:
+        return False, "希望チェーン長さ(A)が短すぎます"
 
-    # -----------------------------
-    # 高さ1700以下
-    # -----------------------------
-    if compare_height <= 1700:
-
-        if dimension_a < standard_chain_length:
-            return False, "希望チェーン長さ(A)が短すぎます"
-
-    # -----------------------------
-    # 高さ1700超
-    # -----------------------------
-    else:
-
-        if high_side_height > 1500:
-            return False, "希望チェーン長さ(A)が短すぎます"
-
-    # -----------------------------
-    # 共通判定
-    # -----------------------------
     if low_side_height < 10:
         return False, "希望チェーン長さ(A)が長すぎます"
 
@@ -711,13 +756,15 @@ def validate_inputs(
 # 入力フォーム
 # =========================
 
-with left_col:
+with input_col:
 
     st.subheader("条件入力")
 
     screen_name = st.selectbox(
         "スクリーン名",
         options=load_screen_names(),
+        key="screen_name",
+        on_change=reset_result,
     )
 
     screen_limits = get_screen_limits(screen_name) if screen_name else None
@@ -729,6 +776,8 @@ with left_col:
             "天井付け",
             "正面付け",
         ],
+        key="mount_type",
+        on_change=reset_result,
     )
 
     product_width = st.number_input(
@@ -737,7 +786,9 @@ with left_col:
         max_value=9999,
         value=None,
         step=5,
-        help="単位：mm。5mm単位で入力してください。"
+        help="単位：mm。5mm単位で入力してください。",
+        key="product_width",
+        on_change=reset_result,
     )
 
     product_height = st.number_input(
@@ -746,10 +797,16 @@ with left_col:
         max_value=9999,
         value=None,
         step=10,
-        help="単位：mm。10mm単位で入力してください。"
+        help="単位：mm。10mm単位で入力してください。",
+        key="product_height",
+        on_change=reset_result,
     )
 
-    use_mount_height = st.checkbox("取付高さを指定する")
+    use_mount_height = st.checkbox(
+        "取付高さを指定する",
+        key="use_mount_height",
+        on_change=reset_result,
+        )
 
     mount_height = None
 
@@ -760,11 +817,15 @@ with left_col:
             max_value=9999,
             value=None,
             step=10,
-            help="単位：mm。10mm単位で入力してください。"
+            help="単位：mm。10mm単位で入力してください。",
+            key="mount_height",
+            on_change=reset_result,
         )
 
     use_dimension_a = st.checkbox(
-        "A側希望チェーン長さ(A)を指定する"
+        "A側希望チェーン長さ(A)を指定する",
+        key="use_dimension_a",
+        on_change=reset_result,
     )
 
     dimension_a_input = None
@@ -776,11 +837,20 @@ with left_col:
             max_value=9999,
             value=None,
             step=10,
-            help="単位:mm。10mm単位で入力してください。"
+            help="単位:mm。10mm単位で入力してください。",
+            key="dimension_a_input",
+            on_change=reset_result,
+        )
+
+    _, button_col = st.columns([2.5, 1.5])
+
+    with button_col:
+        judge_button = st.button(
+            "判定する",
+            use_container_width=True,
         )
 
     st.divider()
-
 
     # =========================
     # 選択スクリーンの制限表示
@@ -810,15 +880,17 @@ if "result" not in st.session_state:
         "c": "****",
         "high": "****",
         "low": "****",
+        "minimum_dimension_a": None,
+        "maximum_dimension_a": None,
     }
 
 # =========================
 # 判定ボタン
 # =========================
 
-with left_col:
+with input_col:
 
-    if st.button("判定する"):
+    if judge_button:
         errors = validate_inputs(
             mount_type=mount_type,
             product_width=product_width,
@@ -946,6 +1018,12 @@ with left_col:
             one_stroke_distance,
         )
             
+            # 標準B寸法
+            standard_dimension_b = calculate_dimension_b(
+            standard_chain_length,
+            one_stroke_distance,
+        )
+            
             # C寸法
             dimension_c = calculate_dimension_c(
             dimension_a,
@@ -955,7 +1033,8 @@ with left_col:
             # 床から高い側の高さ
             high_side_height = calculate_high_side_height(
             mount_type,
-            pipe_center_height,
+            product_height,
+            mount_height,
             side_holder_center_distance,
             dimension_a,
             pipe_radius,
@@ -970,36 +1049,77 @@ with left_col:
             pipe_radius,
         )
             
+            # 標準B側床から高さ
+            standard_low_side_height = calculate_low_side_height(
+            mount_type,
+            pipe_center_height,
+            side_holder_center_distance,
+            standard_dimension_b,
+            pipe_radius,
+        )
+            
+            # 指定可能A寸法範囲
+            minimum_dimension_a = math.ceil(standard_chain_length / 10) * 10
 
+            maximum_dimension_a = math.floor(
+                (
+                    standard_chain_length
+                    + (standard_low_side_height - 10)
+                ) / 10
+            ) * 10
 
             judge_ok, judge_message = judge_chain_length(
             use_dimension_a=use_dimension_a,
-            mount_height=mount_height,
-            product_height=product_height,
             dimension_a=dimension_a,
             standard_chain_length=standard_chain_length,
-            high_side_height=high_side_height,
             low_side_height=low_side_height,
         )
-
+            
             st.session_state.result = {
-            "judge": judge_message,
-            "a": f"{dimension_a:.0f}",
-            "b": f"{dimension_b:.0f}",
-            "c": f"{dimension_c:.0f}",
-            "high": f"{high_side_height:.0f}",
-            "low": f"{low_side_height:.0f}",
-        }
+                "judge": judge_message,
+                "a": f"{dimension_a:.0f}",
+                "b": f"{dimension_b:.0f}",
+                "c": f"{dimension_c:.0f}",
+                "high": f"{high_side_height:.0f}",
+                "low": f"{low_side_height:.0f}",
+                "minimum_dimension_a": minimum_dimension_a,
+                "maximum_dimension_a": maximum_dimension_a,
+            }
 
             st.success("入力チェックOKです。")
 
-with right_col:
+with result_col:
 
     st.subheader("計算結果")
 
     st.divider()
 
     st.write(f"対応可否判定：{st.session_state.result['judge']}")
+
+    if st.session_state.result["judge"] in (
+        "希望チェーン長さ(A)が短すぎます",
+        "希望チェーン長さ(A)が長すぎます",
+    ):
+
+        if mount_height is None:
+
+            st.error(
+                f"""
+    {screen_name}製品幅 W{product_width} × 製品高さ H{product_height} の場合
+
+    指定できるA側希望チェーン長さ(A)は、{st.session_state.result["minimum_dimension_a"]} mm ～ {st.session_state.result["maximum_dimension_a"]} mmです。
+    """
+            )
+
+        else:
+
+            st.error(
+                f"""
+    {screen_name}製品幅 W{product_width} × 製品高さ H{product_height}×取付高さ TH{mount_height} の場合
+
+    指定できるA側希望チェーン長さ(A)は、{st.session_state.result["minimum_dimension_a"]} mm ～ {st.session_state.result["maximum_dimension_a"]} mmです。
+    """
+            )
 
     st.divider()
 
@@ -1013,5 +1133,10 @@ with right_col:
 
     st.write(f"B側床から高さ(YH)：{st.session_state.result['low']} mm")
 
+with image_col:
+
+    st.subheader("イメージ")
+
     st.divider()
+
     draw_svg()
