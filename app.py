@@ -1,6 +1,21 @@
 import streamlit as st
 import pandas as pd
 import math
+from pathlib import Path
+import base64
+import streamlit.components.v1 as components
+
+# =========================
+# ヘッダー関数
+# =========================
+
+def svg_to_base64(svg_path):
+    with open(svg_path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+# =========================
+# ヘッダー設定
+# =========================
 
 st.set_page_config(
     page_title="マイテックスイット 操作チェーン長さ判定",
@@ -10,9 +25,14 @@ st.set_page_config(
 st.markdown("""
 <style>
 
-/* 上のヘッダーを消す */
+/* ヘッダーラインを消す */
 header{
     visibility:hidden;
+}
+            
+/* Deployボタンを非表示 */
+[data-testid="stAppDeployButton"]{
+    display:none;
 }
 
 /* ハンバーガーメニューを消す */
@@ -36,38 +56,132 @@ div[data-testid="stButton"]{
     margin-top:-8px;
 }
 
-</style>
-""", unsafe_allow_html=True)
+/* =========================
+   計算結果カード
+========================= */
 
-st.markdown("""
-<style>
-.block-container{
-    padding-top:0rem;
-    padding-bottom:0.5rem;
+.result-card{
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    overflow:hidden;
+    margin-top:15px;
+    background:white;
 }
 
-.app-title{
-    text-align:center;
-    font-size:2.2rem;
+.result-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 18px;
+    border-bottom:1px solid #eeeeee;
+}
+
+.result-label{
+    font-size:16px;
+    font-weight:600;
+}
+
+.result-value{
+    font-size:24px;
     font-weight:700;
-    margin-top:20px;
-    margin-bottom:10px;
+    color:#0b7ea1;
 }
+
+.result-unit{
+    font-size:16px;
+    color:#555;
+    margin-left:4px;
+}
+
+/* =========================
+   判定ステータス
+========================= */
+
+.status-success{
+    background:#e8f7ee;
+    color:#18864b;
+    border:1px solid #b8e6ca;
+    border-radius:10px;
+    padding:12px 16px;
+    font-size:18px;
+    font-weight:700;
+    margin-top:2px;
+    margin-bottom:2px;
+}
+
+.status-error{
+    background:#fdeaea;
+    color:#c62828;
+    border:1px solid #efb4b4;
+    border-radius:10px;
+    padding:12px 16px;
+    font-size:18px;
+    font-weight:700;
+    margin-top:2px;
+    margin-bottom:2px;
+}
+
+.status-placeholder{
+    background:#f8fafc;
+    border:1px dashed #cbd5e1;
+    border-radius:10px;
+    padding:12px 16px;
+    color:#64748b;
+    font-size:17px;
+    margin-top:2px;
+    margin-bottom:2px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown(
-    '<div class="app-title">マイテックスイット 操作チェーン長さ判定</div>',
-    unsafe_allow_html=True,
+# =========================
+# ヘッダー
+# =========================
+
+logo = svg_to_base64("images/toso.svg")
+
+left_margin, logo_col, title_col, right_margin = st.columns(
+    [0.4, 2.5, 7.5, 0.4]
 )
+
+with logo_col:
+    st.markdown(
+        f"""
+        <a href="https://www.toso.co.jp/" target="_blank">
+            <img
+                src="data:image/svg+xml;base64,{logo}"
+                style="
+                    height:30px;
+                    vertical-align:top;
+                ">
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with title_col:
+    st.markdown(
+        """
+        <div style="
+            font-size:2.2rem;
+            font-weight:700;
+            line-height:46px;
+            margin-left:3px;
+            margin-top:0px;
+        ">
+        マイテックスイット 操作チェーン長さ判定
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.divider()
 
 # 画面レイアウト
 left_margin, input_col, space1, result_col, space2, image_col, right_margin = st.columns(
-    [0.4, 3, 0.4, 3, 0.4, 4, 0.4]
+    [0.4, 3, 0.4, 4, 0.4, 3, 0.4]
 )
-
 
 # =========================
 # Excel情報の取得
@@ -497,6 +611,7 @@ def calculate_low_side_height(
     
 def reset_result():
     st.session_state.result = {
+        "status": "none",
         "judge": "****",
         "a": "****",
         "b": "****",
@@ -874,15 +989,16 @@ with input_col:
 
 if "result" not in st.session_state:
     st.session_state.result = {
-        "judge": "****",
-        "a": "****",
-        "b": "****",
-        "c": "****",
-        "high": "****",
-        "low": "****",
-        "minimum_dimension_a": None,
-        "maximum_dimension_a": None,
-    }
+    "status": "none",
+    "judge": "****",
+    "a": "****",
+    "b": "****",
+    "c": "****",
+    "high": "****",
+    "low": "****",
+    "minimum_dimension_a": None,
+    "maximum_dimension_a": None,
+}
 
 # =========================
 # 判定ボタン
@@ -891,6 +1007,7 @@ if "result" not in st.session_state:
 with input_col:
 
     if judge_button:
+
         errors = validate_inputs(
             mount_type=mount_type,
             product_width=product_width,
@@ -901,19 +1018,29 @@ with input_col:
             dimension_a_input=dimension_a_input,
             screen=screen_name,
             screen_limits=screen_limits,
-            )
+        )
 
         if errors:
-            st.error("入力内容にエラーがあります。")
-            for error in errors:
-                st.write(f"- {error}")
+            st.session_state.result = {
+            "status": "input_error",
+            "judge": "\n".join(errors),
+            "a": "****",
+            "b": "****",
+            "c": "****",
+            "high": "****",
+            "low": "****",
+            "minimum_dimension_a": None,
+            "maximum_dimension_a": None,
+        }
+
         else:
+
+            # 基本情報取得
             basic_values = calculate_basic_values(
-                product_width, 
+                product_width,
                 screen_limits,
             )
 
-            # 基本情報取り出し
             pipe_diameter = basic_values["パイプ直径"]
             pipe_radius = basic_values["パイプ半径"]
             fabric_thickness = basic_values["生地厚さ"]
@@ -1075,7 +1202,16 @@ with input_col:
             low_side_height=low_side_height,
         )
             
+            status = "success"
+
+            if judge_message in (
+                "希望チェーン長さ(A)が短すぎます",
+                "希望チェーン長さ(A)が長すぎます",
+            ):
+                status = "chain_error"
+
             st.session_state.result = {
+                "status": status,
                 "judge": judge_message,
                 "a": f"{dimension_a:.0f}",
                 "b": f"{dimension_b:.0f}",
@@ -1086,15 +1222,99 @@ with input_col:
                 "maximum_dimension_a": maximum_dimension_a,
             }
 
-            st.success("入力チェックOKです。")
-
 with result_col:
 
-    st.subheader("計算結果")
+    st.subheader("判定結果")
 
     st.divider()
 
-    st.write(f"対応可否判定：{st.session_state.result['judge']}")
+    status = st.session_state.result["status"]
+
+    if status == "none":
+
+        st.markdown(
+            """
+            <div class="status-placeholder">
+                💡 判定するボタンを押すと、<br>
+                <span style="padding-left:22px;">
+                    ここに判定結果が表示されます。
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    elif status == "input_error":
+
+        error_list = ""
+
+        for error in st.session_state.result["judge"].split("\n"):
+            error_list += f"・{error}<br>"
+
+        st.markdown(
+            f"""
+    <div class="status-error">
+
+    <div style="
+    font-size:20px;
+    font-weight:700;
+    margin-bottom:12px;
+    ">
+    ⚠ 入力エラー
+    </div>
+
+    <div style="
+    margin-left:6px;
+    line-height:1.9;
+    font-size:18px;
+    font-weight:500;
+    ">
+    {error_list}
+    </div>
+
+    </div>
+    """,
+            unsafe_allow_html=True,
+        )
+
+    elif status == "chain_error":
+
+        st.markdown(
+            f"""
+    <div class="status-error">
+
+    <div style="
+    font-size:20px;
+    font-weight:700;
+    margin-bottom:12px;
+    ">
+    ⚠ チェーン長さ指定エラー
+    </div>
+
+    <div style="
+    font-size:18px;
+    font-weight:600;
+    color:#c62828;
+    line-height:1.8;
+    ">
+    {st.session_state.result["judge"]}
+    </div>
+
+    </div>
+    """,
+            unsafe_allow_html=True,
+        )
+
+    elif status == "success":
+
+        st.markdown(
+            """
+            <div class="status-success">
+                ✅ 製作可能
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     if st.session_state.result["judge"] in (
         "希望チェーン長さ(A)が短すぎます",
@@ -1105,33 +1325,98 @@ with result_col:
 
             st.error(
                 f"""
-    {screen_name}製品幅 W{product_width} × 製品高さ H{product_height} の場合
+            {screen_name}製品幅 W{product_width} × 製品高さ H{product_height} の場合
 
-    指定できるA側希望チェーン長さ(A)は、{st.session_state.result["minimum_dimension_a"]} mm ～ {st.session_state.result["maximum_dimension_a"]} mmです。
-    """
+            指定できるA側希望チェーン長さ(A)は、  
+            {st.session_state.result["minimum_dimension_a"]} mm ～ {st.session_state.result["maximum_dimension_a"]} mmです。
+            """
             )
 
         else:
 
             st.error(
                 f"""
-    {screen_name}製品幅 W{product_width} × 製品高さ H{product_height}×取付高さ TH{mount_height} の場合
+            {screen_name}製品幅 W{product_width} × 製品高さ H{product_height} × 取付高さ TH{mount_height} の場合
 
-    指定できるA側希望チェーン長さ(A)は、{st.session_state.result["minimum_dimension_a"]} mm ～ {st.session_state.result["maximum_dimension_a"]} mmです。
-    """
+            指定できるA側希望チェーン長さ(A)は、  
+            {st.session_state.result["minimum_dimension_a"]} mm ～ {st.session_state.result["maximum_dimension_a"]} mmです。
+            """
             )
 
     st.divider()
 
-    st.write(f"A寸法：{st.session_state.result['a']} mm")
+    st.markdown(
+        f"""
+    <div class="result-card">
 
-    st.write(f"B寸法：{st.session_state.result['b']} mm")
+    <div class="result-row">
+        <span class="result-label">A寸法</span>
+        <span>
+            <span class="result-value">{st.session_state.result['a']}</span>
+            <span class="result-unit">mm</span>
+        </span>
+    </div>
 
-    st.write(f"C寸法：{st.session_state.result['c']} mm")
+    <div class="result-row">
+        <span class="result-label">B寸法</span>
+        <span>
+            <span class="result-value">{st.session_state.result['b']}</span>
+            <span class="result-unit">mm</span>
+        </span>
+    </div>
 
-    st.write(f"A側床から高さ(YH)：{st.session_state.result['high']} mm")
+    <div class="result-row">
+        <span class="result-label">C寸法</span>
+        <span>
+            <span class="result-value">{st.session_state.result['c']}</span>
+            <span class="result-unit">mm</span>
+        </span>
+    </div>
 
-    st.write(f"B側床から高さ(YH)：{st.session_state.result['low']} mm")
+    <div class="result-row">
+        <span class="result-label">A側床から高さ(YH)</span>
+        <span>
+            <span class="result-value">{st.session_state.result['high']}</span>
+            <span class="result-unit">mm</span>
+        </span>
+    </div>
+
+    <div class="result-row">
+        <span class="result-label">B側床から高さ(YH)</span>
+        <span>
+            <span class="result-value">{st.session_state.result['low']}</span>
+            <span class="result-unit">mm</span>
+        </span>
+    </div>
+
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    if status == "success" and use_dimension_a:
+
+        components.html(
+            f"""
+            <button
+                onclick="
+                    navigator.clipboard.writeText('{st.session_state.result["a"]}');
+                    this.innerText='✓ コピー完了';
+                "
+                style="
+                    width:100%;
+                    height:38px;
+                    border:1px solid #d0d0d0;
+                    border-radius:8px;
+                    background:white;
+                    cursor:pointer;
+                    font-size:14px;
+                ">
+                A寸法コピー
+            </button>
+            """,
+            height=50,
+        )
 
 with image_col:
 
