@@ -131,6 +131,16 @@ div[data-testid="stButton"]{
     margin-top:2px;
     margin-bottom:2px;
 }
+            
+/* トグルONの背景色 */
+[data-testid="stToggle"] input:checked + div{
+    background:#00909F !important;
+}
+
+/* 丸いボタン */
+[data-testid="stToggle"] div{
+    transition:0.2s;
+}
 
 </style>
 """, unsafe_allow_html=True)
@@ -180,7 +190,7 @@ st.divider()
 
 # 画面レイアウト
 left_margin, input_col, space1, result_col, space2, image_col, right_margin = st.columns(
-    [0.4, 3, 0.4, 4, 0.4, 3, 0.4]
+    [0.4, 3, 0.3, 3.5, 0.3, 3.7, 0.4]
 )
 
 # =========================
@@ -662,102 +672,6 @@ def judge_chain_length(
 
     return True, "製作可能"
 
-def draw_svg():
-
-    svg = """
-    <svg width="420" height="320"
-         xmlns="http://www.w3.org/2000/svg">
-
-        <!-- 天井 -->
-        <rect
-            x="50"
-            y="20"
-            width="260"
-            height="8"
-            fill="#8d8452"
-            stroke="#5b5430"
-            stroke-width="2"/>
-
-        <!-- パイプ -->
-        <rect
-            x="70"
-            y="28"
-            width="220"
-            height="22"
-            fill="#8b8b8b"
-            stroke="#555"
-            stroke-width="2"/>
-
-        <!-- 左エンドキャップ -->
-        <rect
-            x="66"
-            y="26"
-            width="8"
-            height="26"
-            fill="#214f93"/>
-
-        <!-- 右エンドキャップ -->
-        <rect
-            x="286"
-            y="26"
-            width="8"
-            height="26"
-            fill="#214f93"/>
-
-        <!-- Aチェーン（手前） -->
-        <line
-            x1="286"
-            y1="50"
-            x2="286"
-            y2="155"
-            stroke="#163d87"
-            stroke-width="2"/>
-
-        <!-- Bチェーン（奥） -->
-        <line
-            x1="294"
-            y1="50"
-            x2="294"
-            y2="220"
-            stroke="#163d87"
-            stroke-width="2"/>
-
-        <!-- Aグリップ -->
-        <path
-            d="
-                M282 135
-                Q282 133 284 133
-                L286 133
-                Q288 133 288 135
-                L290 170
-                Q290 172 288 172
-                L282 172
-                Q280 172 280 170
-                Z"
-            fill="#0d67c2"
-            stroke="#18407a"
-            stroke-width="2"/>
-
-        <!-- Bグリップ -->
-        <path
-            d="
-                M290 200
-                Q290 198 292 198
-                L294 198
-                Q296 198 296 200
-                L298 235
-                Q298 237 296 237
-                L290 237
-                Q288 237 288 235
-                Z"
-            fill="#0d67c2"
-            stroke="#18407a"
-            stroke-width="2"/>
-
-    </svg>
-    """
-
-    st.components.v1.html(svg, height=280)
 
 # =========================
 # バリデーション関数
@@ -1421,7 +1335,66 @@ with result_col:
 with image_col:
 
     st.subheader("イメージ")
-
     st.divider()
 
-    draw_svg()
+    # ① 取付方法が選択されているときだけトグル表示
+    if mount_type in ["天井付け", "正面付け"]:
+
+        show_c = st.session_state.get("show_c", False)
+
+        # ② 表示する画像を決定
+        image_path = None
+
+        if mount_type == "天井付け":
+
+            if show_c:
+                image_path = "images/天井付け_C寸法.png"
+            else:
+                image_path = "images/天井付け_AB寸法.png"
+
+        elif mount_type == "正面付け":
+
+            if show_c:
+                image_path = "images/正面付け_C寸法.png"
+            else:
+                image_path = "images/正面付け_AB寸法.png"
+
+        # ③ 画像表示
+        st.markdown(
+            f"""
+            <div style="
+                display:inline-block;
+                background:#00909F;
+                color:white;
+                font-weight:700;
+                padding:6px 16px;
+                border-radius:8px;
+                margin-bottom:10px;
+                font-size:16px;
+            ">
+                {mount_type}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.image(image_path, use_container_width=True)
+
+        show_c = st.toggle(
+            "C寸法を表示",
+            value=False,
+            key="show_c"
+        )
+
+    # ④ 取付方法未選択
+    else:
+
+        st.markdown(
+            """
+            <div class="status-placeholder">
+                <div>💡 取付方法を選択すると</div>
+                <div style="padding-left: 1.4em;">イメージが表示されます。</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
