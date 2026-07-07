@@ -466,12 +466,13 @@ def calculate_pipe_center_height(
 def calculate_base_distance_difference(
     base_distance,
     side_holder_center_distance,
+    pipe_radius,
 ):
     """
-    基準距離 - サイドホルダー軸心距離を計算する
+    基準距離 + サイドホルダー軸心距離 - パイプ半径を計算する
     """
 
-    return base_distance - side_holder_center_distance
+    return base_distance + side_holder_center_distance - pipe_radius
 
 def calculate_one_stroke_distance(
     ball_chain_lead_count,
@@ -483,11 +484,13 @@ def calculate_one_stroke_distance(
     return ball_chain_lead_count * 12
 
 def calculate_ball_chain_total_length(
+    mount_type,
     use_dimension_a,
     dimension_a_input,
     pipe_radius,
     one_stroke_distance,
     pipe_center_height,
+    side_holder_center_distance,
     operation_start_max_height,
     base_distance_difference,
     base_distance,
@@ -503,24 +506,44 @@ def calculate_ball_chain_total_length(
             + one_stroke_distance
         )
 
-    # 通常計算
-    if (
-        pipe_center_height
-        <= operation_start_max_height + base_distance_difference
-    ):
+    if mount_type == "天井付け":
+  
+        if (
+            pipe_center_height + side_holder_center_distance
+            <= operation_start_max_height + base_distance_difference
+        ):
+            return (
+                2 * (base_distance)
+                + one_stroke_distance
+            )
+
         return (
-            2 * (base_distance + 6)
+            2 * (
+                pipe_center_height
+                - operation_start_max_height
+            )
+            + one_stroke_distance
+        )
+    
+    else:
+        if (
+            pipe_center_height + pipe_radius
+            <= operation_start_max_height + base_distance
+        ):
+            return (
+                2 * (base_distance)
+                + one_stroke_distance
+            )
+
+        return (
+            2 * (
+                pipe_center_height
+                - operation_start_max_height
+            )
             + one_stroke_distance
         )
 
-    return (
-        2 * (
-            pipe_center_height
-            - operation_start_max_height
-            + 6
-        )
-        + one_stroke_distance
-    )
+
 
 def calculate_dimension_a(
     ball_chain_total_length,
@@ -1008,6 +1031,7 @@ with input_col:
             base_distance_difference = calculate_base_distance_difference(
             basic_values["基準距離 K"],
             side_holder_center_distance,
+            pipe_radius,
         )
             
             #1ストローク距離
@@ -1017,11 +1041,13 @@ with input_col:
             
             # 標準チェーン長さ用ボールチェーン全長
             standard_ball_chain_total_length = calculate_ball_chain_total_length(
+            mount_type,
             False,
             None,
             pipe_radius,
             one_stroke_distance,
             pipe_center_height,
+            side_holder_center_distance,
             basic_values["操作起点最大高さ Amax"],
             base_distance_difference,
             basic_values["基準距離 K"],
@@ -1029,11 +1055,13 @@ with input_col:
 
             #ボールチェーン全長
             ball_chain_total_length = calculate_ball_chain_total_length(
+            mount_type,
             use_dimension_a,
             dimension_a_input,
             pipe_radius,
             one_stroke_distance,
             pipe_center_height,
+            side_holder_center_distance,
             basic_values["操作起点最大高さ Amax"],
             base_distance_difference,
             basic_values["基準距離 K"],
